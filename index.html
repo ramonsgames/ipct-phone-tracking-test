@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iPhone Camera Tracker to File</title>
+    <script src="https://cloudflare.com"></script>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #111; color: #fff; text-align: center; }
+        #interface { padding-top: 80px; }
+        button { padding: 15px 30px; font-size: 16px; font-weight: bold; margin: 10px; border: none; border-radius: 8px; cursor: pointer; }
+        #start-btn { background: #007aff; color: white; }
+        #export-btn { background: #34c759; color: white; display: none; }
+        #status { font-size: 14px; margin-top: 20px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <div id="interface">
+        <h2>Camera Path Recorder</h2>
+        <button id="start-btn">Start Recording</button>
+        <button id="export-btn">Stop & Export File</button>
+        <p id="status">Status: Ready</p>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('start-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const statusText = document.getElementById('status');
+
+        let recordedData = [];
+        
+        let lastFrameTime = 0;
+        const frameInterval = 1000 / 30;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.xr.enabled = true;
+        let scene = new THREE.Scene();
+        let camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+
+        recordedData.push("Timestamp(ms),PosX,PosY,PosZ,RotX,RotY,RotZ");
+
+        startBtn.addEventListener('click', () => {
+            navigator.xr.requestSession('immersive-ar', {
+                requiredFeatures: ['local-floor']
+            }).then((session) => {
+                startBtn.style.display = 'none';
+                exportBtn.style.display = 'inline-block';
+                statusText.innerText = "Recording coordinates at 30 FPS...";
+                
+                renderer.xr.setSession(session);
+                renderer.setAnimationLoop(recordFrame);
+            }).catch((err) => {
+                statusText.innerText = "Error: Ensure WebXR is enabled in Safari Flags.";
+            });
+        });
+
+        function recordFrame(time) {
+            const xrCamera = renderer.xr.getCamera(camera);
+            
+            if (xrCamera) {
+                const deltaTime = time - lastFrameTime;
+
+                if (deltaTime >= frameInterval) {
+                    lastFrameTime = time - (deltaTime % frameInterval);
+
+                    const pos = xrCamera.position;
+                    const rot = xrCamera.rotation;
+                    const row = `${Math.round(time)},${pos.x.toFixed(4)},${pos.y.toFixed(4)},${pos.z.toFixed(4)},${(rot.x * (180/Math.PI)).toFixed(2)},${(rot.y * (180/Math.PI)).toFixed(2)},${(rot.z * (180/Math.PI)).toFixed(2)}`;
+                    
+                    recordedData.push(row);
+                }
+            }
+        }
+
+        exportBtn.addEventListener('click', () => {
+            renderer.setAnimationLoop(null);
+            statusText.innerText = "Processing file download...";
+
+            const fileContent = recordedData.join("\n");
+            
+            const blob = new Blob([fileContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", "camera_tracking_data.ipct");
+            document.body.appendChild(link);
+            
+            link.click();
+            document.body.removeChild(link);
+            
+            statusText.innerText = "File exported! Refresh page to record a new track.";
+            exportBtn.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
