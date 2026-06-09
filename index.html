@@ -18,7 +18,7 @@
 
     <div id="interface">
         <h2>Camera Path Recorder</h2>
-        <button id="start-btn">Start Recording</button>
+        <button id="start-btn" onclick="start()">Start Recording</button>
         <button id="export-btn">Stop & Export File</button>
         <p id="status">Status: Ready</p>
     </div>
@@ -40,7 +40,7 @@
 
         recordedData.push("Timestamp(ms),PosX,PosY,PosZ,RotX,RotY,RotZ");
 
-        startBtn.addEventListener('click', () => {
+        function start(){
             navigator.xr.requestSession('immersive-ar', {
                 requiredFeatures: ['local-floor']
             }).then((session) => {
@@ -53,7 +53,7 @@
             }).catch((err) => {
                 statusText.innerText = "Error: Ensure WebXR is enabled in Safari Flags.";
             });
-        });
+        }
 
         function recordFrame(time) {
             const xrCamera = renderer.xr.getCamera(camera);
