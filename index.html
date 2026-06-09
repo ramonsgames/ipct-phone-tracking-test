@@ -2,6 +2,7 @@
 <html>
     <head>
         <title>SeCunDely</title>
+        <script src="https://cloudflare.com"></script>
     </head>
     <style>
         details {
@@ -42,7 +43,7 @@
             <i id="agentctr" style="color: green;"></i>
             <button>Export Animation</button>
             <hr>
-            <details id="tracklog">
+            <details id="trackerlog">
                 <summary>output</summary>
             </details>
         </div>
@@ -57,21 +58,41 @@
             compm.style.display = "none";
             dtp.style.display = "block";
             let isconnected = false;
-            
+            const socket = new WebSocket(`ws://${prompt("Enter server ipv4 (e.g., 192.168.1.50:8080):")}`);
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.xr.enabled = true; 
+            let scene = new THREE.Scene();
+            let camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
 
             function typeselected(isPhonecc){
                 if(isPhonecc){
                     isPhone = true;
-                    phom.style.display = "block"
+                    phom.style.display = "block";
                     socket.send("PHONE CONNECTED");
                     requestMotionPermission();
+
+                    if (navigator.xr) {
+                        navigator.xr.requestSession('immersive-ar', {
+                            requiredFeatures: ['local-floor']
+                        }).then((session) => {
+                            startTrackingSession(session);
+                        }).catch((err) => {
+                            alert("AR Error: Ensure you are on HTTPS and WebXR is enabled in Safari Flags.");
+                            console.error(err);
+                        });
+                    } else {
+                        alert("WebXR engine unavailable. Check device/browser compatibility.");
+                    }
                 }
                 else{
-                    compm.style.display = "block"
+                    compm.style.display = "block";
                     socket.send("TRACKER CONNECTED");
                 }
-                dtp.style.display = "none"
+                dtp.style.display = "none";
             }
+
+            function handleOrientation(event) {}
 
             function requestMotionPermission() {
                 if (typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -80,7 +101,7 @@
                             if (permissionState === 'granted') {
                                 window.addEventListener('deviceorientation', handleOrientation);
                             } else {
-                                console.error("Orientation permission denied.");
+                                console.error("denied permission");
                             }
                         })
                         .catch(console.error);
@@ -89,7 +110,7 @@
                 }
             }
             
-            const socket = new WebSocket('ws://localhost:8080');
+            //const socket = new WebSocket('ws://localhost:8080');
 
             socket.onopen = () => {
                 console.log('connected');
@@ -118,40 +139,49 @@
             };
 
 
+            let lastFrameTime = 0;
+            const frameInterval = 1000 / 30;
+
             function startTrackingSession(session) {
-                renderer.xr.setSession(session);
+                renderer.xr.setSession(session); 
                 renderer.setAnimationLoop(streamTrackingFrame);
             }
 
-            function streamTrackingFrame() {
+            function streamTrackingFrame(time) {
                 const xrCamera = renderer.xr.getCamera(camera);
                 
                 if (xrCamera && socket.readyState === WebSocket.OPEN) {
-                    const position = xrCamera.position;
-                    const rotation = xrCamera.rotation;
+                    const deltaTime = time - lastFrameTime;
+                    if (deltaTime >= frameInterval) {
+                        lastFrameTime = time - (deltaTime % frameInterval);
 
-                    const payload = JSON.stringify({
-                        px: position.x,
-                        py: position.y,
-                        pz: position.z,
+                        const position = xrCamera.position;
+                        const rotation = xrCamera.rotation;
+
+                        const payload = JSON.stringify({
+                            px: position.x,
+                            py: position.y,
+                            pz: position.z,
+                            rx: rotation.x * (180 / Math.PI), 
+                            ry: rotation.y * (180 / Math.PI), 
+                            rz: rotation.z * (180 / Math.PI)
+                        });
                         
-                        rx: rotation.x * (180 / Math.PI), 
-                        ry: rotation.y * (180 / Math.PI), 
-                        rz: rotation.z * (180 / Math.PI)
-                    });
-                    socket.send(payload);
+                        socket.send(payload);
+                    }
                 }
             }
 
 
-            function sendMessage() {
+
+            /* function sendMessage() {
                 const input = document.getElementById('messageInput');
                 if(input != ""){
                     socket.send(input.value);
                 }
                 document.getElementById('chatLog').innerHTML += `<p>you: ${input.value}</p>`;
                 input.value = '';
-            }
+            } */
         </script>
     </body>
 </html>
